@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// ElevenLabs voice: "Rachel" — clear, calm, professional US English
-const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'
+// ElevenLabs voice: "Adam" — clear, professional, works on free tier
+const VOICE_ID = 'pNInz6obpgDQGcFmaJgB'
 const MODEL_ID = 'eleven_turbo_v2_5'   // fastest + high quality
 
 export async function POST(req: NextRequest) {
