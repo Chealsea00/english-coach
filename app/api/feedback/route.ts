@@ -34,7 +34,10 @@ Analyze pronunciation accuracy and fluency. Return ONLY a valid JSON object (no 
       },
     })
     const text = result.response.text().trim()
-    const json = JSON.parse(text.replace(/^```json\n?/, '').replace(/\n?```$/, ''))
+    const start = text.indexOf('{')
+    const end   = text.lastIndexOf('}')
+    if (start === -1 || end === -1) throw new Error('No JSON in response')
+    const json = JSON.parse(text.slice(start, end + 1))
     return NextResponse.json(json)
   } catch {
     return NextResponse.json({ error: 'Failed to generate feedback' }, { status: 500 })

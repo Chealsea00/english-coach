@@ -46,7 +46,10 @@ Extract 5-7 keyPhrases. Focus on power phrases, collocations, and executive-leve
       },
     })
     const raw = result.response.text().trim()
-    const json = JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''))
+    const start = raw.indexOf('{')
+    const end   = raw.lastIndexOf('}')
+    if (start === -1 || end === -1) throw new Error('No JSON in response')
+    const json = JSON.parse(raw.slice(start, end + 1))
     return NextResponse.json(json)
   } catch (e) {
     console.error('Passage analysis error:', e)

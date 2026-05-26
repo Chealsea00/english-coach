@@ -174,10 +174,15 @@ export default function VocabularyPage() {
         accumulated += decoder.decode(value, { stream: true })
         setStreaming(extractPartial(accumulated))
       }
+      // Flush any remaining bytes held by the decoder
+      accumulated += decoder.decode()
 
-      // Full JSON complete — parse and save
-      const clean = accumulated.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
-      const data = JSON.parse(clean)
+      // Extract the JSON object robustly — handles markdown fences and
+      // any preamble/postamble Gemini may add around the JSON
+      const start = accumulated.indexOf('{')
+      const end   = accumulated.lastIndexOf('}')
+      if (start === -1 || end === -1) throw new Error('Failed to generate vocabulary card')
+      const data = JSON.parse(accumulated.slice(start, end + 1))
 
       const word: VocabWord = {
         id: crypto.randomUUID(),
