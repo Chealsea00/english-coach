@@ -36,10 +36,30 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
 }`
 
   try {
-    const result = await model.generateContent(prompt)
-    const text = result.response.text().trim()
-    const json = JSON.parse(text.replace(/^```json\n?/, '').replace(/\n?```$/, ''))
-    return NextResponse.json(json)
+    const result = await model.generateContentStream({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        // @ts-expect-error thinkingConfig is supported but not yet in type defs
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    })
+
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            controller.enqueue(encoder.encode(chunk.text()))
+          }
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
   } catch {
     return NextResponse.json({ error: 'Failed to generate vocabulary card' }, { status: 500 })
   }

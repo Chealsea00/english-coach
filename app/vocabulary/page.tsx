@@ -5,6 +5,46 @@ import { vocabStore, statsStore } from '@/lib/storage'
 import type { VocabWord } from '@/types'
 import { Search, Loader2, Volume2, Star, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
+// ── Progressive JSON field extraction ────────────────────────────────────────
+// Reads fields out of a partially-streamed JSON string as they become available.
+function extractPartial(raw: string) {
+  const str = (key: string) => {
+    const m = raw.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 's'))
+    return m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : undefined
+  }
+  const arr = (key: string) => {
+    const m = raw.match(new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)\\]`))
+    if (!m) return undefined
+    return [...m[1].matchAll(/"((?:[^"\\\\]|\\\\.)*)"/g)].map(x => x[1])
+  }
+  const objArr = (key: string) => {
+    const m = raw.match(new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)\\]`))
+    if (!m) return undefined
+    const items: { style: string; expression: string }[] = []
+    const block = m[1]
+    const styleMatches = [...block.matchAll(/"style"\s*:\s*"([^"]+)"/g)]
+    const exprMatches  = [...block.matchAll(/"expression"\s*:\s*"([^"]+)"/g)]
+    styleMatches.forEach((sm, i) => {
+      if (exprMatches[i]) items.push({ style: sm[1], expression: exprMatches[i][1] })
+    })
+    return items.length ? items : undefined
+  }
+  return {
+    word:             str('word'),
+    ipa:              str('ipa'),
+    chineseMeaning:   str('chineseMeaning'),
+    englishDefinition:str('englishDefinition'),
+    pronunciationTips:str('pronunciationTips'),
+    difficulty:       str('difficulty') as VocabWord['difficulty'] | undefined,
+    topic:            str('topic'),
+    businessExamples: arr('businessExamples'),
+    collocations:     arr('collocations'),
+    alternatives:     objArr('alternatives'),
+  }
+}
+
+type Partial_VocabWord = ReturnType<typeof extractPartial>
+
 const TOPIC_COLORS: Record<string, string> = {
   strategy: '#6c63ff', finance: '#22c55e', operations: '#f97316',
   communication: '#a78bfa', leadership: '#eab308', general: '#7070a0',
@@ -102,6 +142,7 @@ export default function VocabularyPage() {
   const [filterTopic, setFilterTopic] = useState('all')
   const [search, setSearch] = useState('')
   const [newCard, setNewCard] = useState<VocabWord | null>(null)
+  const [streaming, setStreaming] = useState<Partial_VocabWord | null>(null)
 
   useEffect(() => { setWords(vocabStore.getAll()) }, [])
 
@@ -111,18 +152,36 @@ export default function VocabularyPage() {
     setLoading(true)
     setError('')
     setNewCard(null)
+    setStreaming(null)
+    const savedInput = input.trim()
+    setInput('')
     try {
       const res = await fetch('/api/vocabulary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: input.trim(), inputType }),
+        body: JSON.stringify({ input: savedInput, inputType }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok || !res.body) throw new Error('Failed to generate vocabulary card')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      // Stream in chunks, progressively showing fields as they arrive
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
+        setStreaming(extractPartial(accumulated))
+      }
+
+      // Full JSON complete — parse and save
+      const clean = accumulated.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
+      const data = JSON.parse(clean)
 
       const word: VocabWord = {
         id: crypto.randomUUID(),
-        input: input.trim(),
+        input: savedInput,
         inputType,
         ...data,
         createdAt: Date.now(),
@@ -136,9 +195,10 @@ export default function VocabularyPage() {
       statsStore.addXP(10)
       setWords(vocabStore.getAll())
       setNewCard(word)
-      setInput('')
+      setStreaming(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
+      setStreaming(null)
     } finally {
       setLoading(false)
     }
@@ -201,8 +261,47 @@ export default function VocabularyPage() {
           {error && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</div>}
         </form>
 
-        {/* New card result */}
-        {newCard && (
+        {/* Streaming preview — appears field-by-field as Gemini responds */}
+        {streaming && (
+          <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(108,99,255,0.4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <Loader2 size={13} style={{ color: 'var(--accent2)', animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1 }}>Generating…</span>
+            </div>
+
+            {streaming.word && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span style={{ fontSize: 22, fontWeight: 700 }}>{streaming.word}</span>
+                {streaming.ipa && <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'monospace' }}>{streaming.ipa}</span>}
+                {streaming.topic && <span className="tag">{streaming.topic}</span>}
+                {streaming.difficulty && <span className="tag">{streaming.difficulty}</span>}
+              </div>
+            )}
+            {streaming.chineseMeaning && (
+              <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 4 }}>{streaming.chineseMeaning}</div>
+            )}
+            {streaming.englishDefinition && (
+              <div style={{ fontSize: 14, marginBottom: 10 }}>{streaming.englishDefinition}</div>
+            )}
+            {streaming.collocations && streaming.collocations.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {streaming.collocations.map((c, i) => <span key={i} className="tag-accent">{c}</span>)}
+              </div>
+            )}
+            {streaming.businessExamples && streaming.businessExamples.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                {streaming.businessExamples.map((ex, i) => (
+                  <div key={i} style={{ fontSize: 13, background: 'var(--surface2)', borderRadius: 6, padding: '7px 12px', marginBottom: 6 }}>
+                    <span style={{ color: 'var(--accent2)' }}>▸</span> {ex}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Completed new card */}
+        {newCard && !streaming && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Just learned</div>
             <VocabCard word={{ ...newCard }} onDelete={() => handleDelete(newCard.id)} onFavorite={() => handleFavorite(newCard.id)} />
@@ -234,7 +333,7 @@ export default function VocabularyPage() {
           </>
         )}
 
-        {words.length === 0 && !newCard && (
+        {words.length === 0 && !newCard && !streaming && (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>Your vocabulary library is empty</div>

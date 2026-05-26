@@ -38,7 +38,13 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
 Extract 5-7 keyPhrases. Focus on power phrases, collocations, and executive-level expressions a non-native speaker would benefit from knowing.`
 
   try {
-    const result = await model.generateContent(prompt)
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        // @ts-expect-error thinkingConfig is supported but not yet in type defs
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    })
     const raw = result.response.text().trim()
     const json = JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''))
     return NextResponse.json(json)

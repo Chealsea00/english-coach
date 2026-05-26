@@ -26,7 +26,13 @@ Analyze pronunciation accuracy and fluency. Return ONLY a valid JSON object (no 
 }`
 
   try {
-    const result = await model.generateContent(prompt)
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        // @ts-expect-error thinkingConfig is supported but not yet in type defs
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    })
     const text = result.response.text().trim()
     const json = JSON.parse(text.replace(/^```json\n?/, '').replace(/\n?```$/, ''))
     return NextResponse.json(json)
