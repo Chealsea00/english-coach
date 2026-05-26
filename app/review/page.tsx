@@ -5,18 +5,12 @@ import { vocabStore, passageStore, statsStore } from '@/lib/storage'
 import { sm2, isDue } from '@/lib/spaced-repetition'
 import type { VocabWord, Passage } from '@/types'
 import { Volume2, CheckCircle, XCircle, Clock, Trophy } from 'lucide-react'
+import { speak } from '@/lib/tts'
 
 type CardItem =
   | { kind: 'vocab';    data: VocabWord; mode: 'meaning' | 'chinese-to-english' }
   | { kind: 'passage';  data: Passage }
 
-function speak(text: string, rate = 0.9) {
-  if (typeof window === 'undefined') return
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = 'en-US'; u.rate = rate
-  window.speechSynthesis.speak(u)
-}
 
 function buildQueue(): CardItem[] {
   const vocab   = vocabStore.getAll().filter(w => isDue(w.nextReview))

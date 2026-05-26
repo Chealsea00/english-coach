@@ -4,6 +4,7 @@ import Nav from '@/components/Nav'
 import { vocabStore, statsStore } from '@/lib/storage'
 import type { VocabWord } from '@/types'
 import { Search, Loader2, Volume2, Star, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { speak } from '@/lib/tts'
 
 // ── Progressive JSON field extraction ────────────────────────────────────────
 // Reads fields out of a partially-streamed JSON string as they become available.
@@ -62,13 +63,6 @@ const TOPIC_COLORS: Record<string, string> = {
   communication: '#a78bfa', leadership: '#eab308', general: '#7070a0',
 }
 
-function speak(text: string) {
-  if (typeof window === 'undefined') return
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = 'en-US'
-  u.rate = 0.9
-  window.speechSynthesis.speak(u)
-}
 
 function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: () => void; onFavorite: () => void }) {
   const [expanded, setExpanded] = useState(false)

@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import Nav from '@/components/Nav'
 import { vocabStore, passageStore } from '@/lib/storage'
 import { Mic, MicOff, Volume2, Loader2, RefreshCw } from 'lucide-react'
+import { speak } from '@/lib/tts'
 
 const PRACTICE_SENTENCES = [
   "The primary driver behind the variance is a shift in customer acquisition costs.",
@@ -15,14 +16,6 @@ const PRACTICE_SENTENCES = [
   "Want to make sure we're kind of on the same page before moving forward.",
 ]
 
-function speak(text: string, rate = 0.85) {
-  if (typeof window === 'undefined') return
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = 'en-US'
-  u.rate = rate
-  window.speechSynthesis.speak(u)
-}
 
 type FeedbackData = {
   score: number

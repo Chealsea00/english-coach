@@ -4,6 +4,7 @@ import Nav from '@/components/Nav'
 import { passageStore, statsStore } from '@/lib/storage'
 import type { Passage } from '@/types'
 import { Plus, Loader2, Volume2, Star, Trash2, ChevronDown, ChevronUp, BookOpen } from 'lucide-react'
+import { speak } from '@/lib/tts'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -45,14 +46,6 @@ const SAMPLE_PASSAGES = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function speak(text: string) {
-  if (typeof window === 'undefined') return
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = 'en-US'
-  u.rate = 0.85
-  window.speechSynthesis.speak(u)
-}
 
 function truncate(text: string, max = 120) {
   return text.length > max ? text.slice(0, max) + '…' : text
