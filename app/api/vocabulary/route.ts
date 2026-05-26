@@ -31,9 +31,17 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
     {"style": "executive", "expression": "..."}
   ],
   "collocations": ["collocation 1", "collocation 2", "collocation 3"],
+  "wordRoot": {
+    "root": "the core root morpheme(s), e.g. 'lev' or 'syn- + erg'",
+    "origin": "Latin / Greek / Old French / Old English / etc.",
+    "meaning": "what the root literally means"
+  },
+  "relatedWords": ["word sharing same root 1", "word sharing same root 2", "word sharing same root 3"],
   "difficulty": "basic|intermediate|advanced",
   "topic": "one of: strategy|finance|operations|communication|leadership|general"
-}`
+}
+
+Note: if the word is a Chinese-derived term or has no meaningful Latin/Greek root, set wordRoot to null and relatedWords to [].`
 
   try {
     const result = await model.generateContentStream({
@@ -60,7 +68,11 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
     return new Response(stream, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     })
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ''
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+      return NextResponse.json({ error: 'Daily API quota reached. The free tier allows 20 requests/day — please try again tomorrow.' }, { status: 429 })
+    }
     return NextResponse.json({ error: 'Failed to generate vocabulary card' }, { status: 500 })
   }
 }

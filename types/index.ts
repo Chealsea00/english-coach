@@ -9,6 +9,8 @@ export interface VocabWord {
   businessExamples: string[]
   alternatives: { style: string; expression: string }[]
   collocations: string[]
+  wordRoot?: { root: string; origin: string; meaning: string }
+  relatedWords?: string[]
   difficulty: 'basic' | 'intermediate' | 'advanced'
   topic: string
   createdAt: number

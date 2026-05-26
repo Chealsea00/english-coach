@@ -52,7 +52,10 @@ Extract 5-7 keyPhrases. Focus on power phrases, collocations, and executive-leve
     const json = JSON.parse(raw.slice(start, end + 1))
     return NextResponse.json(json)
   } catch (e) {
-    console.error('Passage analysis error:', e)
+    const msg = e instanceof Error ? e.message : ''
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+      return NextResponse.json({ error: 'Daily API quota reached. The free tier allows 20 requests/day — please try again tomorrow.' }, { status: 429 })
+    }
     return NextResponse.json({ error: 'Failed to analyze passage' }, { status: 500 })
   }
 }

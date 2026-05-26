@@ -39,7 +39,11 @@ Analyze pronunciation accuracy and fluency. Return ONLY a valid JSON object (no 
     if (start === -1 || end === -1) throw new Error('No JSON in response')
     const json = JSON.parse(text.slice(start, end + 1))
     return NextResponse.json(json)
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ''
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+      return NextResponse.json({ error: 'Daily API quota reached. The free tier allows 20 requests/day — please try again tomorrow.' }, { status: 429 })
+    }
     return NextResponse.json({ error: 'Failed to generate feedback' }, { status: 500 })
   }
 }

@@ -29,6 +29,16 @@ function extractPartial(raw: string) {
     })
     return items.length ? items : undefined
   }
+  const wordRoot = () => {
+    const m = raw.match(/"wordRoot"\s*:\s*\{([^}]*)\}/)
+    if (!m) return undefined
+    const block = m[1]
+    const root    = block.match(/"root"\s*:\s*"([^"]+)"/)
+    const origin  = block.match(/"origin"\s*:\s*"([^"]+)"/)
+    const meaning = block.match(/"meaning"\s*:\s*"([^"]+)"/)
+    if (!root || !origin || !meaning) return undefined
+    return { root: root[1], origin: origin[1], meaning: meaning[1] }
+  }
   return {
     word:             str('word'),
     ipa:              str('ipa'),
@@ -40,6 +50,8 @@ function extractPartial(raw: string) {
     businessExamples: arr('businessExamples'),
     collocations:     arr('collocations'),
     alternatives:     objArr('alternatives'),
+    wordRoot:         wordRoot(),
+    relatedWords:     arr('relatedWords'),
   }
 }
 
@@ -127,6 +139,46 @@ function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: 
               ))}
             </div>
           </div>
+
+          {word.wordRoot && (
+            <div style={{
+              background: 'rgba(167,139,250,0.07)',
+              border: '1px solid rgba(167,139,250,0.2)',
+              borderRadius: 8, padding: '12px 14px',
+            }}>
+              <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                Word Root
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent2)' }}>
+                  {word.wordRoot.root}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {word.wordRoot.origin}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: word.relatedWords?.length ? 12 : 0 }}>
+                "{word.wordRoot.meaning}"
+              </div>
+              {word.relatedWords && word.relatedWords.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Words sharing this root</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {word.relatedWords.map((w, i) => (
+                      <button key={i} onClick={() => speak(w)}
+                        style={{
+                          background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)',
+                          borderRadius: 5, padding: '3px 10px', fontSize: 13, color: 'var(--accent2)',
+                          cursor: 'pointer', fontWeight: 500,
+                        }}>
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -300,6 +352,20 @@ export default function VocabularyPage() {
                     <span style={{ color: 'var(--accent2)' }}>▸</span> {ex}
                   </div>
                 ))}
+              </div>
+            )}
+            {streaming.wordRoot && (
+              <div style={{ marginTop: 10, background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Word Root</div>
+                <span style={{ fontWeight: 700, color: 'var(--accent2)', marginRight: 8 }}>{streaming.wordRoot.root}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{streaming.wordRoot.origin} · "{streaming.wordRoot.meaning}"</span>
+                {streaming.relatedWords && streaming.relatedWords.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                    {streaming.relatedWords.map((w, i) => (
+                      <span key={i} style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 5, padding: '2px 8px', fontSize: 12, color: 'var(--accent2)' }}>{w}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
