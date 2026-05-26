@@ -1,65 +1,87 @@
-import Image from "next/image";
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import Nav from '@/components/Nav'
+import { vocabStore, passageStore, statsStore } from '@/lib/storage'
+import { getDueCount } from '@/lib/spaced-repetition'
+import { BookOpen, Mic, AlignLeft, RotateCcw, Flame, Star, TrendingUp } from 'lucide-react'
 
 export default function Home() {
+  const [stats, setStats] = useState({ streak: 0, totalXP: 0, vocabCount: 0, passageCount: 0, reviewsCompleted: 0 })
+  const [dueCount, setDueCount] = useState(0)
+
+  useEffect(() => {
+    const s = statsStore.get()
+    const vocab = vocabStore.getAll()
+    const passages = passageStore.getAll()
+    setStats({ ...s, vocabCount: vocab.length, passageCount: passages.length })
+    setDueCount(getDueCount([...vocab, ...passages]))
+  }, [])
+
+  const featureCards = [
+    { href: '/vocabulary', icon: BookOpen, title: 'Vocabulary', desc: 'Learn advanced business expressions', count: `${stats.vocabCount} words saved`, color: '#6c63ff' },
+    { href: '/sentences', icon: AlignLeft, title: 'Passages', desc: 'Analyze paragraphs from meetings & magazines', count: `${stats.passageCount} passages saved`, color: '#a78bfa' },
+    { href: '/pronunciation', icon: Mic, title: 'Pronunciation', desc: 'Record and get AI feedback on your speech', count: 'Practice anytime', color: '#22c55e' },
+    { href: '/review', icon: RotateCcw, title: 'Review', desc: 'Spaced repetition for long-term retention', count: dueCount > 0 ? `${dueCount} cards due` : 'All caught up!', color: dueCount > 0 ? '#eab308' : '#22c55e' },
+  ]
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{ display: 'flex' }}>
+      <Nav />
+      <main style={{ marginLeft: 220, padding: '40px 48px', flex: 1, maxWidth: 900 }}>
+        <div style={{ marginBottom: 36 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>Business English AI Coach</h1>
+          <p style={{ color: 'var(--muted)', marginTop: 6, fontSize: 15 }}>Sound fluent, natural, and executive in every meeting.</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div style={{ display: 'flex', gap: 16, marginBottom: 36 }}>
+          {[
+            { icon: Flame, label: 'Day Streak', value: stats.streak, color: '#f97316' },
+            { icon: Star, label: 'Total XP', value: stats.totalXP, color: '#eab308' },
+            { icon: TrendingUp, label: 'Reviews Done', value: stats.reviewsCompleted, color: '#6c63ff' },
+          ].map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="card" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon size={18} style={{ color }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</div>
+              </div>
+            </div>
+          ))}
         </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {featureCards.map(({ href, icon: Icon, title, desc, count, color }) => (
+            <Link key={href} href={href} style={{ textDecoration: 'none' }}>
+              <div
+                className="card"
+                style={{ cursor: 'pointer', transition: 'border-color 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = color)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                  <Icon size={20} style={{ color }} />
+                </div>
+                <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>{title}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{desc}</div>
+                <div style={{ fontSize: 12, color, fontWeight: 500 }}>{count}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {dueCount > 0 && (
+          <div style={{ marginTop: 24, background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontWeight: 600 }}>You have {dueCount} cards due for review</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Keep your streak going!</div>
+            </div>
+            <Link href="/review"><button className="btn-primary">Start Review</button></Link>
+          </div>
+        )}
       </main>
     </div>
-  );
+  )
 }
