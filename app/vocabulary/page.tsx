@@ -3,8 +3,14 @@ import { useState, useEffect, useCallback } from 'react'
 import Nav from '@/components/Nav'
 import { vocabStore, statsStore } from '@/lib/storage'
 import type { VocabWord } from '@/types'
-import { Search, Loader2, Volume2, Star, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Loader2, Volume2, Pause, Trash2, ChevronDown, ChevronUp, CheckCircle2, X, Star, Tag } from 'lucide-react'
+import TagEditor from '@/components/TagEditor'
+import NextSteps from '@/components/NextSteps'
+import { MessageCircle, Mic, RotateCcw } from 'lucide-react'
 import { speak } from '@/lib/tts'
+import { useTTS } from '@/lib/useTTS'
+import { cleanJSON } from '@/lib/clean-json'
+import { TOPIC_COLORS } from '@/lib/topics'
 
 // ── Progressive JSON field extraction ────────────────────────────────────────
 // Reads fields out of a partially-streamed JSON string as they become available.
@@ -31,14 +37,20 @@ function extractPartial(raw: string) {
     return items.length ? items : undefined
   }
   const wordRoot = () => {
-    const m = raw.match(/"wordRoot"\s*:\s*\{([^}]*)\}/)
+    const m = raw.match(/"wordRoot"\s*:\s*\{([\s\S]*?)\}/)
     if (!m) return undefined
     const block = m[1]
     const root    = block.match(/"root"\s*:\s*"([^"]+)"/)
     const origin  = block.match(/"origin"\s*:\s*"([^"]+)"/)
     const meaning = block.match(/"meaning"\s*:\s*"([^"]+)"/)
     if (!root || !origin || !meaning) return undefined
-    return { root: root[1], origin: origin[1], meaning: meaning[1] }
+    const prefixM = block.match(/"prefix"\s*:\s*"([^"]+)"/)
+    const suffixM = block.match(/"suffix"\s*:\s*"([^"]+)"/)
+    return {
+      root: root[1], origin: origin[1], meaning: meaning[1],
+      prefix: prefixM ? prefixM[1] : null,
+      suffix: suffixM ? suffixM[1] : null,
+    }
   }
   return {
     word:             str('word'),
@@ -58,14 +70,72 @@ function extractPartial(raw: string) {
 
 type Partial_VocabWord = ReturnType<typeof extractPartial>
 
-const TOPIC_COLORS: Record<string, string> = {
-  strategy: '#6c63ff', finance: '#22c55e', operations: '#f97316',
-  communication: '#a78bfa', leadership: '#eab308', general: '#7070a0',
+// ── Word Structure block (shared by VocabCard + streaming preview) ────────────
+type WordRootData = {
+  root: string; origin: string; meaning: string
+  prefix?: string | null; suffix?: string | null
 }
 
+function WordStructureBlock({ wordRoot, relatedWords }: { wordRoot: WordRootData; relatedWords?: string[] }) {
+  const { ttsState, ttsText } = useTTS()
+  const parts = [
+    wordRoot.prefix ? { label: 'Prefix', value: wordRoot.prefix } : null,
+    { label: 'Root', value: `${wordRoot.root}  ·  ${wordRoot.origin}  ·  "${wordRoot.meaning}"` },
+    wordRoot.suffix ? { label: 'Suffix', value: wordRoot.suffix } : null,
+  ].filter(Boolean) as { label: string; value: string }[]
 
-function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: () => void; onFavorite: () => void }) {
+  return (
+    <div style={{
+      background: 'rgba(59,111,212,0.07)',
+      border: '1px solid rgba(59,111,212,0.2)',
+      borderRadius: 8, padding: '12px 14px',
+    }}>
+      <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+        Word Structure
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {parts.map(({ label, value }) => (
+          <div key={label} style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, color: 'var(--accent2)',
+              background: 'rgba(59,111,212,0.15)', borderRadius: 4,
+              padding: '1px 7px', flexShrink: 0, minWidth: 44, textAlign: 'center',
+            }}>
+              {label}
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--text)' }}>{value}</span>
+          </div>
+        ))}
+      </div>
+      {relatedWords && relatedWords.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Words sharing this root</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {relatedWords.map((w, i) => (
+              <button key={i} onClick={() => speak(w)} style={{
+                background: 'rgba(59,111,212,0.12)', border: '1px solid rgba(59,111,212,0.25)',
+                borderRadius: 5, padding: '3px 10px', fontSize: 13, color: 'var(--accent2)',
+                cursor: 'pointer', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}>
+                {ttsText === w && ttsState === 'playing' ? <Pause size={11} /> : <Volume2 size={11} />}
+                {w}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VocabCard({ word, onDelete, onToggleStar, onUpdateTags }: {
+  word: VocabWord
+  onDelete: () => void
+  onToggleStar?: () => void
+  onUpdateTags?: (tags: string[]) => void
+}) {
   const [expanded, setExpanded] = useState(false)
+  const { ttsState, ttsText }   = useTTS()
 
   return (
     <div className="card" style={{ marginBottom: 12 }}>
@@ -75,7 +145,7 @@ function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: 
             <span style={{ fontSize: 18, fontWeight: 700 }}>{word.word}</span>
             <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'monospace' }}>{word.ipa}</span>
             <button onClick={() => speak(word.word)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}>
-              <Volume2 size={14} />
+              {ttsText === word.word && ttsState === 'playing' ? <Pause size={14} /> : <Volume2 size={14} />}
             </button>
             <span className="tag" style={{ color: TOPIC_COLORS[word.topic] || 'var(--muted)', borderColor: TOPIC_COLORS[word.topic] + '40' }}>
               {word.topic}
@@ -84,11 +154,33 @@ function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: 
           </div>
           <div style={{ marginTop: 6, fontSize: 14, color: 'var(--muted)' }}>{word.chineseMeaning}</div>
           <div style={{ marginTop: 4, fontSize: 14 }}>{word.englishDefinition}</div>
+          {word.businessExamples?.[0] && (
+            <div style={{
+              marginTop: 10, fontSize: 13, color: 'var(--text)',
+              background: 'var(--surface2)', borderRadius: 6,
+              padding: '7px 12px', borderLeft: '3px solid var(--accent2)',
+            }}>
+              <span style={{ color: 'var(--accent2)', fontWeight: 600, marginRight: 6 }}>e.g.</span>
+              {word.businessExamples[0]}
+            </div>
+          )}
+          {/* Tags row */}
+          {(onUpdateTags || (word.tags && word.tags.length > 0)) && (
+            <div style={{ marginTop: 8 }}>
+              <TagEditor tags={word.tags ?? []} onChange={onUpdateTags} />
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          <button onClick={onFavorite} style={{ background: 'none', border: 'none', cursor: 'pointer', color: word.favorited ? '#eab308' : 'var(--muted)' }}>
-            <Star size={16} fill={word.favorited ? '#eab308' : 'none'} />
-          </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+          {onToggleStar && (
+            <button
+              onClick={onToggleStar}
+              title={word.highlighted ? 'Remove from priority' : 'Mark as priority'}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: word.highlighted ? '#eab308' : 'var(--muted)', padding: 2 }}
+            >
+              <Star size={15} fill={word.highlighted ? 'currentColor' : 'none'} />
+            </button>
+          )}
           <button onClick={onDelete} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
             <Trash2 size={16} />
           </button>
@@ -107,7 +199,7 @@ function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: 
                 <span style={{ color: 'var(--accent2)', fontSize: 12, marginTop: 3, flexShrink: 0 }}>▸</span>
                 <span style={{ fontSize: 14 }}>{ex}</span>
                 <button onClick={() => speak(ex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, flexShrink: 0 }}>
-                  <Volume2 size={12} />
+                  {ttsText === ex && ttsState === 'playing' ? <Pause size={12} /> : <Volume2 size={12} />}
                 </button>
               </div>
             ))}
@@ -135,43 +227,7 @@ function VocabCard({ word, onDelete, onFavorite }: { word: VocabWord; onDelete: 
           </div>
 
           {word.wordRoot && (
-            <div style={{
-              background: 'rgba(167,139,250,0.07)',
-              border: '1px solid rgba(167,139,250,0.2)',
-              borderRadius: 8, padding: '12px 14px',
-            }}>
-              <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                Word Root
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-                <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent2)' }}>
-                  {word.wordRoot.root}
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  {word.wordRoot.origin}
-                </span>
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: word.relatedWords?.length ? 12 : 0 }}>
-                "{word.wordRoot.meaning}"
-              </div>
-              {word.relatedWords && word.relatedWords.length > 0 && (
-                <>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Words sharing this root</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {word.relatedWords.map((w, i) => (
-                      <button key={i} onClick={() => speak(w)}
-                        style={{
-                          background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)',
-                          borderRadius: 5, padding: '3px 10px', fontSize: 13, color: 'var(--accent2)',
-                          cursor: 'pointer', fontWeight: 500,
-                        }}>
-                        {w}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <WordStructureBlock wordRoot={word.wordRoot} relatedWords={word.relatedWords} />
           )}
         </div>
       )}
@@ -185,10 +241,12 @@ export default function VocabularyPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [words, setWords] = useState<VocabWord[]>([])
-  const [filterTopic, setFilterTopic] = useState('all')
-  const [search, setSearch] = useState('')
-  const [newCard, setNewCard] = useState<VocabWord | null>(null)
-  const [streaming, setStreaming] = useState<Partial_VocabWord | null>(null)
+  const [filterTopic, setFilterTopic]         = useState('all')
+  const [filterHighlighted, setFilterHighlighted] = useState(false)
+  const [filterTag, setFilterTag]             = useState('')
+  const [search, setSearch]                   = useState('')
+  const [newCard, setNewCard]                 = useState<VocabWord | null>(null)
+  const [streaming, setStreaming]             = useState<Partial_VocabWord | null>(null)
 
   useEffect(() => { setWords(vocabStore.getAll()) }, [])
 
@@ -207,7 +265,11 @@ export default function VocabularyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: savedInput, inputType }),
       })
-      if (!res.ok || !res.body) throw new Error('Failed to generate vocabulary card')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Failed to generate vocabulary card' }))
+        throw new Error(errData.error ?? 'Failed to generate vocabulary card')
+      }
+      if (!res.body) throw new Error('Failed to generate vocabulary card')
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -225,10 +287,7 @@ export default function VocabularyPage() {
 
       // Extract the JSON object robustly — handles markdown fences and
       // any preamble/postamble Gemini may add around the JSON
-      const start = accumulated.indexOf('{')
-      const end   = accumulated.lastIndexOf('}')
-      if (start === -1 || end === -1) throw new Error('Failed to generate vocabulary card')
-      const data = JSON.parse(accumulated.slice(start, end + 1))
+      const data = JSON.parse(cleanJSON(accumulated))
 
       const word: VocabWord = {
         id: crypto.randomUUID(),
@@ -261,20 +320,30 @@ export default function VocabularyPage() {
     if (newCard?.id === id) setNewCard(null)
   }, [newCard])
 
-  const handleFavorite = useCallback((id: string) => {
-    const w = words.find(w => w.id === id)
-    if (!w) return
-    vocabStore.update(id, { favorited: !w.favorited })
+  const handleToggleStar = useCallback((id: string) => {
+    const word = vocabStore.getAll().find(w => w.id === id)
+    if (!word) return
+    vocabStore.update(id, { highlighted: !word.highlighted })
     setWords(vocabStore.getAll())
-  }, [words])
+    if (newCard?.id === id) setNewCard(v => v ? { ...v, highlighted: !v.highlighted } : v)
+  }, [newCard])
+
+  const handleUpdateTags = useCallback((id: string, tags: string[]) => {
+    vocabStore.update(id, { tags })
+    setWords(vocabStore.getAll())
+    if (newCard?.id === id) setNewCard(v => v ? { ...v, tags } : v)
+  }, [newCard])
 
   const filtered = words.filter(w => {
     if (filterTopic !== 'all' && w.topic !== filterTopic) return false
+    if (filterHighlighted && !w.highlighted) return false
+    if (filterTag && !(w.tags ?? []).includes(filterTag)) return false
     if (search && !w.word.toLowerCase().includes(search.toLowerCase()) && !w.chineseMeaning.includes(search)) return false
     return true
   })
 
-  const topics = ['all', ...Array.from(new Set(words.map(w => w.topic)))]
+  const topics  = ['all', ...Array.from(new Set(words.map(w => w.topic)))]
+  const allTags = Array.from(new Set(words.flatMap(w => w.tags ?? []))).sort()
 
   return (
     <div style={{ display: 'flex' }}>
@@ -314,7 +383,7 @@ export default function VocabularyPage() {
 
         {/* Streaming preview — appears field-by-field as Gemini responds */}
         {streaming && (
-          <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(108,99,255,0.4)' }}>
+          <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(59,111,212,0.4)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <Loader2 size={13} style={{ color: 'var(--accent2)', animation: 'spin 1s linear infinite' }} />
               <span style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1 }}>Generating…</span>
@@ -349,27 +418,64 @@ export default function VocabularyPage() {
               </div>
             )}
             {streaming.wordRoot && (
-              <div style={{ marginTop: 10, background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Word Root</div>
-                <span style={{ fontWeight: 700, color: 'var(--accent2)', marginRight: 8 }}>{streaming.wordRoot.root}</span>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{streaming.wordRoot.origin} · "{streaming.wordRoot.meaning}"</span>
-                {streaming.relatedWords && streaming.relatedWords.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                    {streaming.relatedWords.map((w, i) => (
-                      <span key={i} style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 5, padding: '2px 8px', fontSize: 12, color: 'var(--accent2)' }}>{w}</span>
-                    ))}
-                  </div>
-                )}
+              <div style={{ marginTop: 10 }}>
+                <WordStructureBlock wordRoot={streaming.wordRoot} relatedWords={streaming.relatedWords ?? []} />
               </div>
             )}
           </div>
         )}
 
-        {/* Completed new card */}
+        {/* Completed new card — auto-saved with cancel option */}
         {newCard && !streaming && (
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Just learned</div>
-            <VocabCard word={{ ...newCard }} onDelete={() => handleDelete(newCard.id)} onFavorite={() => handleFavorite(newCard.id)} />
+            {/* Save status bar */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
+              borderBottom: 'none', borderRadius: '10px 10px 0 0',
+              padding: '8px 14px',
+            }}>
+              <span style={{ fontSize: 13, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+                <CheckCircle2 size={14} />
+                Auto-saved to your library
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  onClick={() => handleToggleStar(newCard.id)}
+                  title={newCard.highlighted ? 'Remove from priority' : 'Mark as priority — reviewed 2× more often'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: 'none', border: `1px solid ${newCard.highlighted ? '#eab308' : 'rgba(234,179,8,0.4)'}`,
+                    borderRadius: 6, padding: '3px 10px',
+                    fontSize: 12, color: newCard.highlighted ? '#eab308' : 'var(--muted)', cursor: 'pointer',
+                  }}
+                >
+                  <Star size={12} fill={newCard.highlighted ? 'currentColor' : 'none'} />
+                  {newCard.highlighted ? 'Starred' : 'Star it'}
+                </button>
+                <button
+                  onClick={() => handleDelete(newCard.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: 'none', border: '1px solid rgba(239,68,68,0.3)',
+                    borderRadius: 6, padding: '3px 10px',
+                    fontSize: 12, color: '#ef4444', cursor: 'pointer',
+                  }}
+                >
+                  <X size={12} /> Cancel save
+                </button>
+              </div>
+            </div>
+            {/* Card — top corners flattened to connect with the banner */}
+            <div style={{ borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
+              <VocabCard word={{ ...newCard }} onDelete={() => handleDelete(newCard.id)} onUpdateTags={(tags) => handleUpdateTags(newCard.id, tags)} />
+            </div>
+            {/* Continue the learning loop */}
+            <NextSteps steps={[
+              { href: `/daily?text=${encodeURIComponent(newCard.word)}`, label: 'Use it in a sentence', icon: MessageCircle, color: '#5b5bd6' },
+              { href: '/pronunciation', label: 'Pronounce it', icon: Mic, color: '#22c55e' },
+              { href: '/review', label: 'Review later', icon: RotateCcw, color: '#eab308' },
+            ]} />
           </div>
         )}
 
@@ -378,7 +484,18 @@ export default function VocabularyPage() {
           <>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
               <input className="input" placeholder="Search library…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 220 }} />
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setFilterHighlighted(f => !f)}
+                  style={{
+                    padding: '4px 12px', borderRadius: 6, fontSize: 12,
+                    border: `1px solid ${filterHighlighted ? '#eab308' : 'var(--border)'}`,
+                    background: filterHighlighted ? 'rgba(234,179,8,0.12)' : 'var(--surface2)',
+                    color: filterHighlighted ? '#eab308' : 'var(--muted)',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                  }}>
+                  <Star size={11} fill={filterHighlighted ? 'currentColor' : 'none'} /> Starred
+                </button>
                 {topics.map(t => (
                   <button key={t} onClick={() => setFilterTopic(t)}
                     style={{
@@ -389,11 +506,29 @@ export default function VocabularyPage() {
                     {t}
                   </button>
                 ))}
+                {/* Custom tag filters */}
+                {allTags.length > 0 && (
+                  <>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center', padding: '0 4px' }}>|</span>
+                    {allTags.map(tag => (
+                      <button key={tag} onClick={() => setFilterTag(filterTag === tag ? '' : tag)}
+                        style={{
+                          padding: '4px 10px', borderRadius: 6, fontSize: 12,
+                          border: `1px solid ${filterTag === tag ? 'rgba(167,139,250,0.5)' : 'var(--border)'}`,
+                          background: filterTag === tag ? 'rgba(167,139,250,0.12)' : 'var(--surface2)',
+                          color: filterTag === tag ? '#a78bfa' : 'var(--muted)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 4,
+                        }}>
+                        <Tag size={10} /> #{tag}
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>{filtered.length} words</div>
             {filtered.map(word => (
-              <VocabCard key={word.id} word={word} onDelete={() => handleDelete(word.id)} onFavorite={() => handleFavorite(word.id)} />
+              <VocabCard key={word.id} word={word} onDelete={() => handleDelete(word.id)} onToggleStar={() => handleToggleStar(word.id)} onUpdateTags={(tags) => handleUpdateTags(word.id, tags)} />
             ))}
           </>
         )}

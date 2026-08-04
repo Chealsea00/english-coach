@@ -4,22 +4,25 @@ import Nav from '@/components/Nav'
 import { vocabStore, passageStore, statsStore } from '@/lib/storage'
 import { sm2, isDue } from '@/lib/spaced-repetition'
 import type { VocabWord, Passage } from '@/types'
-import { Volume2, CheckCircle, XCircle, Clock, Trophy } from 'lucide-react'
+import { Volume2, CheckCircle, XCircle, Clock, Trophy, Star, ArrowRight } from 'lucide-react'
 import { speak } from '@/lib/tts'
 
 type CardItem =
-  | { kind: 'vocab';    data: VocabWord; mode: 'meaning' | 'chinese-to-english' }
+  | { kind: 'vocab';    data: VocabWord; mode: 'meaning' }
   | { kind: 'passage';  data: Passage }
 
 
 function buildQueue(): CardItem[] {
-  const vocab   = vocabStore.getAll().filter(w => isDue(w.nextReview))
+  const vocab    = vocabStore.getAll().filter(w => isDue(w.nextReview))
   const passages = passageStore.getAll().filter(p => isDue(p.nextReview))
   const items: CardItem[] = [
-    ...vocab.flatMap(w => [
-      { kind: 'vocab' as const, data: w, mode: 'meaning' as const },
-      { kind: 'vocab' as const, data: w, mode: 'chinese-to-english' as const },
-    ]),
+    ...vocab.flatMap(w => {
+      const cards: CardItem[] = [
+        { kind: 'vocab', data: w, mode: 'meaning' },
+      ]
+      // ⭐ Highlighted words appear twice (2× review frequency)
+      return w.highlighted ? [...cards, ...cards] : cards
+    }),
     ...passages.map(p => ({ kind: 'passage' as const, data: p })),
   ]
   return items.sort(() => Math.random() - 0.5)
@@ -27,43 +30,50 @@ function buildQueue(): CardItem[] {
 
 // ─── Vocab Card ───────────────────────────────────────────────────────────────
 
-function VocabCard({ item }: { item: Extract<CardItem, { kind: 'vocab' }> }) {
+function VocabCard({ item, graded }: { item: Extract<CardItem, { kind: 'vocab' }>; graded: boolean }) {
   const [revealed, setRevealed] = useState(false)
   const w = item.data
   return (
     <div>
-      {item.mode === 'meaning' ? (
-        <>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>What does this word mean?</div>
-          <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 6 }}>{w.word}</div>
-          <div style={{ fontSize: 15, color: 'var(--muted)', fontFamily: 'monospace', marginBottom: 20 }}>{w.ipa}</div>
-          <button onClick={() => speak(w.word, 0.85)} className="btn-secondary" style={{ marginBottom: 24 }}>
-            <Volume2 size={14} /> Pronounce
-          </button>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Translate to English</div>
-          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 20, lineHeight: 1.5 }}>{w.chineseMeaning}</div>
-        </>
-      )}
+      <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>What does this word mean?</div>
+      <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>{w.word}</div>
+      <div style={{ fontSize: 15, color: 'var(--muted)', fontFamily: 'monospace', marginBottom: 12 }}>{w.ipa}</div>
+      <button onClick={() => speak(w.word, 0.85)} className="btn-secondary" style={{ marginBottom: 14 }}>
+        <Volume2 size={14} /> Pronounce
+      </button>
 
-      {!revealed ? (
+      {!revealed && !graded ? (
         <button className="btn-secondary" onClick={() => setRevealed(true)}>Show Answer</button>
       ) : (
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-          {item.mode === 'meaning' ? (
-            <>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{w.englishDefinition}</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>{w.chineseMeaning}</div>
-              {w.businessExamples.slice(0, 2).map((ex, i) => (
-                <div key={i} style={{ fontSize: 13, background: 'var(--surface2)', borderRadius: 6, padding: '8px 12px', marginBottom: 6 }}>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>{w.englishDefinition}</div>
+
+          {/* Post-grade full explanation */}
+          {graded && (
+            <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(99,102,241,0.05)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.18)' }}>
+              <div style={{ fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>中文解释 · Full Explanation</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{w.chineseMeaning}</div>
+              {w.businessExamples.slice(0, 1).map((ex, i) => (
+                <div key={i} style={{ fontSize: 13, background: 'var(--surface2)', borderRadius: 6, padding: '7px 12px', marginBottom: 6 }}>
                   <span style={{ color: 'var(--accent2)' }}>▸</span> {ex}
                 </div>
               ))}
-            </>
-          ) : (
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent2)' }}>{w.word}</div>
+              {w.collocations && w.collocations.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Collocations</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {w.collocations.map((c, i) => (
+                      <span key={i} style={{ fontSize: 12, padding: '3px 9px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {w.wordRoot && (
+                <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                  Root: <strong style={{ color: 'var(--text)' }}>{w.wordRoot.root}</strong> ({w.wordRoot.origin}) — {w.wordRoot.meaning}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -73,7 +83,7 @@ function VocabCard({ item }: { item: Extract<CardItem, { kind: 'vocab' }> }) {
 
 // ─── Passage Card ─────────────────────────────────────────────────────────────
 
-function PassageReviewCard({ item }: { item: Extract<CardItem, { kind: 'passage' }> }) {
+function PassageReviewCard({ item, graded }: { item: Extract<CardItem, { kind: 'passage' }>; graded: boolean }) {
   const [revealed, setRevealed] = useState(false)
   const p = item.data
   return (
@@ -93,7 +103,7 @@ function PassageReviewCard({ item }: { item: Extract<CardItem, { kind: 'passage'
         <Volume2 size={14} /> Listen
       </button>
 
-      {!revealed ? (
+      {!revealed && !graded ? (
         <button className="btn-secondary" onClick={() => setRevealed(true)}>Show Key Phrases</button>
       ) : (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
@@ -111,6 +121,24 @@ function PassageReviewCard({ item }: { item: Extract<CardItem, { kind: 'passage'
               💡 {p.pronunciationFocus}
             </div>
           )}
+
+          {/* Post-grade: Chinese summary + notable patterns */}
+          {graded && p.chineseSummary && (
+            <div style={{ marginTop: 20, padding: '16px 18px', background: 'rgba(99,102,241,0.05)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.18)' }}>
+              <div style={{ fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, fontWeight: 600 }}>中文摘要 · Chinese Summary</div>
+              <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text)' }}>{p.chineseSummary}</div>
+              {p.notablePatterns && p.notablePatterns.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Notable Patterns</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {p.notablePatterns.map((pt, i) => (
+                      <div key={i} style={{ fontSize: 13, color: 'var(--text)', paddingLeft: 12, borderLeft: '2px solid var(--accent)' }}>{pt}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -125,6 +153,7 @@ export default function ReviewPage() {
   const [done, setDone] = useState(false)
   const [results, setResults] = useState({ correct: 0, hard: 0, wrong: 0 })
   const [started, setStarted] = useState(false)
+  const [graded, setGraded] = useState(false)
 
   const totalDue = (() => {
     const v = vocabStore.getAll().filter(w => isDue(w.nextReview)).length
@@ -138,6 +167,7 @@ export default function ReviewPage() {
     setDone(false)
     setResults({ correct: 0, hard: 0, wrong: 0 })
     setStarted(true)
+    setGraded(false)
   }
 
   const grade = (quality: 0 | 3 | 5) => {
@@ -160,6 +190,12 @@ export default function ReviewPage() {
       wrong:   quality === 0 ? r.wrong + 1   : r.wrong,
     }))
 
+    // Show explanation panel first; advance only on Next click
+    setGraded(true)
+  }
+
+  const advance = () => {
+    setGraded(false)
     if (index + 1 >= queue.length) {
       statsStore.update({ reviewsCompleted: statsStore.get().reviewsCompleted + queue.length })
       statsStore.addXP(queue.length * 5)
@@ -247,50 +283,74 @@ export default function ReviewPage() {
   return (
     <div style={{ display: 'flex' }}>
       <Nav />
-      <main style={{ marginLeft: 220, padding: '40px 48px', flex: 1, maxWidth: 700 }}>
+      <main style={{ marginLeft: 220, padding: '24px 48px', flex: 1, maxWidth: 700 }}>
         {/* Progress bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
           <div style={{ flex: 1, height: 6, background: 'var(--surface2)', borderRadius: 3 }}>
             <div style={{ width: `${progress}%`, height: '100%', background: 'var(--accent)', borderRadius: 3, transition: 'width 0.3s' }} />
           </div>
           <div style={{ fontSize: 13, color: 'var(--muted)', flexShrink: 0 }}>{index + 1} / {queue.length}</div>
         </div>
 
-        <div className="card" style={{ minHeight: 360 }}>
+        <div className="card">
           {/* Card type badge + skip */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-            <span className={card.kind === 'vocab' ? 'tag-accent' : 'tag'}>
-              {card.kind === 'vocab' ? 'Vocabulary' : 'Passage'}
-            </span>
-            <button onClick={() => grade(0)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>
-              Skip
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className={card.kind === 'vocab' ? 'tag-accent' : 'tag'}>
+                {card.kind === 'vocab' ? 'Vocabulary' : 'Passage'}
+              </span>
+              {card.data.highlighted && (
+                <Star size={13} fill="currentColor" style={{ color: '#eab308' }} />
+              )}
+            </div>
+            <button onClick={graded ? advance : () => grade(0)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>
+              {graded ? 'Skip →' : 'Skip'}
             </button>
           </div>
 
           {card.kind === 'vocab'
-            ? <VocabCard key={`${card.data.id}-${card.mode}-${index}`} item={card} />
-            : <PassageReviewCard key={`${card.data.id}-${index}`} item={card} />
+            ? <VocabCard key={`${card.data.id}-${card.mode}-${index}`} item={card} graded={graded} />
+            : <PassageReviewCard key={`${card.data.id}-${index}`} item={card} graded={graded} />
           }
 
-          {/* Grading buttons */}
-          <div style={{ marginTop: 28, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>How well did you know this?</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {[
-                { label: 'Again', icon: XCircle,      quality: 0 as const, bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.3)',   color: '#ef4444' },
-                { label: 'Hard',  icon: Clock,         quality: 3 as const, bg: 'rgba(234,179,8,0.08)',  border: 'rgba(234,179,8,0.3)',  color: '#eab308' },
-                { label: 'Easy',  icon: CheckCircle,   quality: 5 as const, bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.3)',  color: '#22c55e' },
-              ].map(({ label, icon: Icon, quality, bg, border, color }) => (
-                <button key={label} onClick={() => grade(quality)} style={{
-                  flex: 1, padding: '12px', borderRadius: 8,
-                  border: `1px solid ${border}`, background: bg, color,
-                  cursor: 'pointer', fontSize: 14,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}>
-                  <Icon size={15} /> {label}
-                </button>
-              ))}
-            </div>
+          {/* Grading buttons → Next after graded — sticky so it's always reachable */}
+          <div style={{
+            position: 'sticky', bottom: 0,
+            marginTop: 16, marginLeft: -20, marginRight: -20, marginBottom: -20,
+            padding: '14px 20px',
+            background: 'var(--surface)', borderTop: '1px solid var(--border)',
+            borderRadius: '0 0 12px 12px',
+          }}>
+            {graded ? (
+              <button onClick={advance} style={{
+                width: '100%', padding: '13px', borderRadius: 8, cursor: 'pointer',
+                background: 'var(--accent)', border: 'none', color: '#fff',
+                fontSize: 15, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+                Next <ArrowRight size={16} />
+              </button>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>How well did you know this?</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {[
+                    { label: 'Again', icon: XCircle,    quality: 0 as const, bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.3)',  color: '#ef4444' },
+                    { label: 'Hard',  icon: Clock,       quality: 3 as const, bg: 'rgba(234,179,8,0.08)', border: 'rgba(234,179,8,0.3)', color: '#eab308' },
+                    { label: 'Easy',  icon: CheckCircle, quality: 5 as const, bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.3)', color: '#22c55e' },
+                  ].map(({ label, icon: Icon, quality, bg, border, color }) => (
+                    <button key={label} onClick={() => grade(quality)} style={{
+                      flex: 1, padding: '12px', borderRadius: 8,
+                      border: `1px solid ${border}`, background: bg, color,
+                      cursor: 'pointer', fontSize: 14,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}>
+                      <Icon size={15} /> {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>

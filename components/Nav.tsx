@@ -1,61 +1,57 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Mic, AlignLeft, RotateCcw, Zap } from 'lucide-react'
+import { BookOpen, Mic, AlignLeft, RotateCcw, Zap, Library, MessageCircle, LogOut } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
+import { supabaseConfigured } from '@/lib/supabase'
 
 const links = [
   { href: '/', label: 'Home', icon: Zap },
   { href: '/vocabulary', label: 'Vocabulary', icon: BookOpen },
+  { href: '/daily', label: 'Sentence Coach', icon: MessageCircle },
   { href: '/sentences', label: 'Passages', icon: AlignLeft },
   { href: '/pronunciation', label: 'Pronunciation', icon: Mic },
   { href: '/review', label: 'Review', icon: RotateCcw },
+  { href: '/saved', label: 'Library', icon: Library },
 ]
 
 export default function Nav() {
   const path = usePathname()
+  const { user, signOut } = useAuth()
   return (
-    <nav style={{
-      background: 'var(--surface)',
-      borderRight: '1px solid var(--border)',
-      width: 220,
-      minHeight: '100vh',
-      padding: '24px 0',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      zIndex: 10,
-    }}>
-      <div style={{ padding: '0 20px 24px' }}>
+    <nav className="app-nav">
+      <div className="app-nav-brand" style={{ padding: '0 20px 24px' }}>
         <div style={{ fontSize: 13, color: 'var(--accent2)', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
           BizEnglish
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>AI Coach</div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 12px' }}>
+      <div className="app-nav-links">
         {links.map(({ href, label, icon: Icon }) => {
           const active = path === href
           return (
-            <Link key={href} href={href} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '9px 12px',
-              borderRadius: 8,
-              fontSize: 14,
+            <Link key={href} href={href} className="app-nav-link" style={{
               fontWeight: active ? 500 : 400,
               color: active ? 'var(--text)' : 'var(--muted)',
               background: active ? 'var(--surface2)' : 'transparent',
-              textDecoration: 'none',
-              transition: 'all 0.15s',
             }}>
-              <Icon size={16} style={{ color: active ? 'var(--accent2)' : 'var(--muted)' }} />
+              <Icon size={16} style={{ color: active ? 'var(--accent2)' : 'var(--muted)', flexShrink: 0 }} />
               {label}
             </Link>
           )
         })}
       </div>
+
+      {supabaseConfigured && user && (
+        <div className="app-nav-foot">
+          <div style={{ fontSize: 11, color: 'var(--muted)', padding: '0 12px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {user.email}
+          </div>
+          <button onClick={signOut} className="app-nav-link" style={{ color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}>
+            <LogOut size={16} style={{ flexShrink: 0 }} /> Sign out
+          </button>
+        </div>
+      )}
     </nav>
   )
 }

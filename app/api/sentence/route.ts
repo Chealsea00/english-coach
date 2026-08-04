@@ -1,13 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { cleanJSON } from '@/lib/clean-json'
 import { NextRequest, NextResponse } from 'next/server'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { generateWithFallback } from '@/lib/ai'
 
 export async function POST(req: NextRequest) {
   const { text, sourceType } = await req.json()
   if (!text) return NextResponse.json({ error: 'Missing text' }, { status: 400 })
-
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   const prompt = `You are a Business English coach helping a non-native Chinese professional master fluent, executive-level English.
 
@@ -38,24 +35,10 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
 Extract 5-7 keyPhrases. Focus on power phrases, collocations, and executive-level expressions a non-native speaker would benefit from knowing.`
 
   try {
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        // @ts-expect-error thinkingConfig is supported but not yet in type defs
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    })
-    const raw = result.response.text().trim()
-    const start = raw.indexOf('{')
-    const end   = raw.lastIndexOf('}')
-    if (start === -1 || end === -1) throw new Error('No JSON in response')
-    const json = JSON.parse(raw.slice(start, end + 1))
-    return NextResponse.json(json)
+    const raw = await generateWithFallback(prompt)
+    return NextResponse.json(JSON.parse(cleanJSON(raw)))
   } catch (e) {
-    const msg = e instanceof Error ? e.message : ''
-    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
-      return NextResponse.json({ error: 'Daily API quota reached. The free tier allows 20 requests/day — please try again tomorrow.' }, { status: 429 })
-    }
-    return NextResponse.json({ error: 'Failed to analyze passage' }, { status: 500 })
+    console.error('[/api/sentence]', e)
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed to analyze passage' }, { status: 500 })
   }
 }
