@@ -26,6 +26,24 @@ Non-native English-speaking professionals — analysts, managers, operators, fou
 
 ---
 
+## Features
+
+- **Bilingual input** — type in **English or 中文**; Chinese input is turned into the natural, idiomatic English a native professional would actually say
+- **AI vocabulary cards** — every word gets a Chinese meaning, English definition, real business examples, alternative phrasings by register, common collocations, and its word root
+- **Sentence Coach** — paste any sentence to learn its tone, register, key phrases, stressed words, and tips for saying it naturally
+- **Passage analysis** — break down longer text from meetings, emails, or articles into key phrases and patterns worth imitating
+- **Pronunciation practice** — record yourself, listen back against native audio, and get specific AI feedback
+- **Spaced-repetition review** — an SM-2 memory algorithm resurfaces cards right before you'd forget them, with the answer + full explanation shown after each grade
+- **Star your priorities** — mark the words and sentences you most want to master; starred items are reviewed **2× more often**
+- **Custom tags** — organize your library with your own labels and filter by them
+- **Auto topic sorting** — every word and sentence is auto-categorized (strategy, finance, communication, product…) and browsable by topic
+- **Natural audio** — listen to any word or sentence at slow or normal speed (ElevenLabs voice, with a built-in fallback)
+- **Meaningful progress** — track expressions mastered, day streak, and reviews completed
+- **Accounts + cloud sync** — sign in and your entire library follows you across every device
+- **Works on your phone** — responsive layout with a mobile bottom nav
+
+---
+
 ## Tech stack
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
