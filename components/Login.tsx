@@ -42,10 +42,10 @@ export default function Login() {
         </div>
 
         <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
-          {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+          {mode === 'signin' ? 'Welcome to BizEnglish' : 'Create your account'}
         </div>
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>
-          {mode === 'signin' ? 'Sign in to sync your words everywhere.' : 'Your vocabulary and progress, on any device.'}
+          {mode === 'signin' ? 'Sign in — or sign up below if you’re new.' : 'Your vocabulary and progress, on any device.'}
         </div>
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
