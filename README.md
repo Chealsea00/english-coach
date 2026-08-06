@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BizEnglish — AI Business English Coach
 
-## Getting Started
+**Sound fluent, natural, and executive in every meeting.**
 
-First, run the development server:
+🔗 **Live app:** https://english-coach-blue-ten.vercel.app
+
+BizEnglish is an AI-powered coach for non-native professionals who already *work* in English but want to sound sharper, more natural, and more confident — in meetings, emails, Slack, and presentations. Paste a word or an idea (in English **or** Chinese) and get an instant, business-context learning card; then lock it into memory with spaced-repetition review.
+
+---
+
+## Why use it
+
+Most language apps teach generic vocabulary. BizEnglish is built for the **workplace** — the exact expressions, tone, and delivery that make you sound like a fluent operator, not a textbook.
+
+- **🈶 Think in Chinese, speak in English.** Type your idea in 中文 and get the natural, idiomatic way a native professional would actually say it — not a stiff literal translation.
+- **💼 Business-context learning cards.** Every word comes with a Chinese meaning, English definition, real business examples, alternative phrasings by register, collocations, and word roots.
+- **🗣 Sentence Coach.** Paste any sentence and learn its tone, key phrases, stress, and how to deliver it naturally.
+- **🎙 Pronunciation practice.** Record yourself, compare to native audio, and get AI feedback.
+- **🔁 Spaced-repetition review.** A proven memory algorithm resurfaces words right before you'd forget them — star the ones that matter most for 2× review.
+- **📈 Progress that means something.** Track expressions mastered, day streaks, and reviews done.
+- **☁️ Your library, everywhere.** Sign in and your vocabulary, sentences, and progress sync across every device.
+
+## Who it's for
+
+Non-native English-speaking professionals — analysts, managers, operators, founders — who want to communicate with more polish and less hesitation at work.
+
+---
+
+## Tech stack
+
+- **Next.js 16** (App Router) + **React 19** + **TypeScript**
+- **Supabase** — authentication + Postgres (per-user data with Row Level Security)
+- **Gemini 2.5 Flash** with a **Groq (Llama 3.3 70B)** fallback for AI generation
+- **ElevenLabs** TTS with a Web Speech fallback
+- Deployed on **Vercel**
+
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create a `.env.local` with:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+GEMINI_API_KEY=...
+GROQ_API_KEY=...
+ELEVENLABS_API_KEY=...
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To set up the database, run [`supabase/schema.sql`](supabase/schema.sql) in your Supabase SQL Editor.
